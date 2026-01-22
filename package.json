@@ -16,32 +16,32 @@
   "contributes": {
     "commands": [
       {
-        "command": "mother.helloWorld",
-        "title": "Hello World"
-      },
-      {
         "command": "mother.predictNextEdit",
-        "title": "Predict Next Edit"
+        "title": "Mother: Predict Next Edit"
       },
       {
         "command": "mother.dumpContext",
-        "title": "Dump Context Snapshot"
+        "title": "Mother: Dump Context Snapshot"
       },
       {
         "command": "mother.dumpPrompt",
-        "title": "Dump Prompt"
+        "title": "Mother: Dump Prompt"
+      },
+      {
+        "command": "mother.dumpPromptWithCompletion",
+        "title": "Mother: Dump Prompt with Completion"
       },
       {
         "command": "mother.toggleStatus",
-        "title": "Toggle Autocomplete"
+        "title": "Mother: Toggle Autocomplete"
       },
       {
         "command": "mother.toggleGlobalAutocomplete",
-        "title": "Toggle Autocomplete (Global)"
+        "title": "Mother: Toggle Autocomplete (Global)"
       },
       {
         "command": "mother.toggleLanguageAutocomplete",
-        "title": "Toggle Autocomplete (Language)"
+        "title": "Mother: Toggle Autocomplete (Language)"
       }
     ],
     "configuration": {

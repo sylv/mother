@@ -22,6 +22,7 @@ I use ollama because its simple and can run in the background. You can use llama
 
 ## todo
 
+- Option to limit completions to a single line
 - Context handling is basically "whatever codex came up with" and needs improvement
     - What/how many files should be included would be good to know
     - More information on the prompt in general would be nice

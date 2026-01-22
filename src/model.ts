@@ -86,7 +86,7 @@ export class ModelClient {
       body: JSON.stringify({
         model: this.model,
         prompt,
-        max_tokens: 128,
+        max_tokens: 512,
         temperature: 0,
         stop: ['<|file_sep|>', '</s>'],
       }),

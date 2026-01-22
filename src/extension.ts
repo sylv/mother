@@ -20,6 +20,24 @@ import {
   updateStatusBar,
 } from './statusbar';
 
+const normalizeIndentation = (lines: string[], editor: vscode.TextEditor): string[] => {
+  if (editor.options.insertSpaces !== true) {
+    return lines;
+  }
+  const tabSizeOption = editor.options.tabSize;
+  const tabSize = typeof tabSizeOption === 'number' ? tabSizeOption : 4;
+  const tabReplacement = ' '.repeat(tabSize);
+  return lines.map((line) => {
+    const match = line.match(/^[\t ]+/);
+    if (!match) {
+      return line;
+    }
+    const leading = match[0];
+    const normalizedLeading = leading.replace(/\t/g, tabReplacement);
+    return normalizedLeading + line.slice(leading.length);
+  });
+};
+
 export function activate(context: vscode.ExtensionContext) {
   const output = vscode.window.createOutputChannel('mother');
   const config = readConfig();
@@ -46,13 +64,17 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   vscode.workspace.textDocuments.forEach((document) => tracker.trackDocumentOpen(document));
+  tracker.trackVisibleEditors(vscode.window.visibleTextEditors);
 
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((document) => tracker.trackDocumentOpen(document)),
     vscode.workspace.onDidChangeTextDocument((event) => tracker.trackDocumentChange(event)),
+    vscode.workspace.onDidCloseTextDocument((document) => tracker.trackDocumentClose(document)),
   );
 
   let inFlightController: AbortController | null = null;
+  let lastActiveEditor = vscode.window.activeTextEditor;
+  let lastActiveAt = Date.now();
 
   const requestPrediction = async (editor: vscode.TextEditor, reason: string) => {
     if (inFlightController) {
@@ -144,6 +166,40 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage('mother: prompt opened in a new tab.');
   });
 
+  const dumpPromptWithCompletionCommand = vscode.commands.registerCommand('mother.dumpPromptWithCompletion', async () => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      return;
+    }
+    const activeConfig = readConfig();
+    if (!activeConfig.endpoint || !activeConfig.model) {
+      vscode.window.showWarningMessage('mother: Configure endpoint and model before requesting predictions.');
+      return;
+    }
+    const contextSnapshot = getContextSnapshot(editor, tracker, output, activeConfig);
+    if (!contextSnapshot) {
+      return;
+    }
+    const builder = new PromptBuilder(activeConfig.maxContextChars);
+    const promptResult = builder.build(contextSnapshot);
+    if (!promptResult) {
+      output.appendLine('[mother] Not enough context to build a prompt yet.');
+      return;
+    }
+
+    try {
+      const client = new ModelClient(activeConfig.endpoint, activeConfig.model);
+      const completion = await client.complete(promptResult.prompt);
+      const needsNewline = promptResult.prompt.length > 0 && !promptResult.prompt.endsWith('\n');
+      const merged = `${promptResult.prompt}${needsNewline ? '\n' : ''}${completion ?? ''}`;
+      await openTextInNewTab('markdown', merged);
+      vscode.window.showInformationMessage('mother: prompt with completion opened in a new tab.');
+    } catch (error) {
+      output.appendLine(`[mother] Dump prompt with completion failed: ${String(error)}`);
+      vscode.window.showWarningMessage(`mother: ${String(error)}`);
+    }
+  });
+
   const inlineProvider = vscode.languages.registerInlineCompletionItemProvider({ pattern: '**' }, {
     provideInlineCompletionItems: async (document, position, _inlineContext, token) => {
       output.appendLine('[mother] Inline completion requested.');
@@ -216,11 +272,15 @@ export function activate(context: vscode.ExtensionContext) {
         const windowText = windowTextForRange(document, window);
         const normalizedCompletion = completion.startsWith('\n') ? completion.slice(1) : completion;
         const currentLines = windowText.split('\n');
-        const predictedLines = normalizedCompletion.split('\n').slice(0, currentLines.length);
+        const predictedLines = normalizedCompletion.split('\n');
         const edits = diffLinesToEdits(currentLines, predictedLines);
-        const filteredEdits = edits.filter((edit) => window.start.line + edit.startLine >= position.line);
+        const filteredEdits = edits.filter((edit) => {
+          const startLine = window.start.line + edit.startLine;
+          const endLineExclusive = window.start.line + edit.endLineExclusive;
+          return endLineExclusive > position.line || startLine >= position.line;
+        });
         if (filteredEdits.length === 0) {
-          output.appendLine('[mother] No applicable edits after cursor.');
+          output.appendLine('[mother] No applicable edits.');
           setStatusState(context, 'idle');
           updateStatusBar(statusBar, context, statusInputs(editor));
           return [];
@@ -230,15 +290,16 @@ export function activate(context: vscode.ExtensionContext) {
           const startLine = window.start.line + edit.startLine;
           const endLineExclusive = window.start.line + edit.endLineExclusive;
           const range = rangeForLineSpan(document, startLine, endLineExclusive);
-          const insertText = edit.newLines.join('\n');
+          const normalizedLines = normalizeIndentation(edit.newLines, editor);
+          const insertText = normalizedLines.join('\n');
           return new vscode.InlineCompletionItem(insertText, range);
         });
 
         output.appendLine(`[mother] Completion length: ${completion.length}`);
         output.appendLine(`[mother] Completion preview: ${truncateForLog(completion, 400)}`);
         output.appendLine(`[mother] Window length: ${windowText.length}`);
-        output.appendLine(`[mother] Edits generated: ${edits.length}, after cursor: ${filteredEdits.length}`);
-        filteredEdits.slice(0, 5).forEach((edit, index) => {
+        output.appendLine(`[mother] Edits generated: ${edits.length}, after/overlapping cursor: ${filteredEdits.length}`);
+        edits.slice(0, 5).forEach((edit, index) => {
           output.appendLine(`[mother] Edit ${index + 1}: lines ${edit.startLine}-${edit.endLineExclusive}, insert ${truncateForLog(edit.newLines.join('\\n'), 200)}`);
         });
         clearStatusError(context);
@@ -307,7 +368,17 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const editorListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
+    const now = Date.now();
+    if (lastActiveEditor) {
+      tracker.recordViewedEditor(lastActiveEditor, now - lastActiveAt);
+    }
+    lastActiveEditor = editor;
+    lastActiveAt = now;
     updateStatusBar(statusBar, context, statusInputs(editor));
+  });
+
+  const visibleEditorsListener = vscode.window.onDidChangeVisibleTextEditors((editors) => {
+    tracker.trackVisibleEditors(editors);
   });
 
   const configListener = vscode.workspace.onDidChangeConfiguration((event) => {
@@ -333,10 +404,12 @@ export function activate(context: vscode.ExtensionContext) {
     inlineProvider,
     dumpContextCommand,
     dumpPromptCommand,
+    dumpPromptWithCompletionCommand,
     toggleStatus,
     toggleGlobalCommand,
     toggleLanguageCommand,
     editorListener,
+    visibleEditorsListener,
     configListener,
   );
 }
