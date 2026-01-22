@@ -1,0 +1,123 @@
+{
+  "name": "mother",
+  "displayName": "mother",
+  "description": "",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.108.1"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mother.helloWorld",
+        "title": "Hello World"
+      },
+      {
+        "command": "mother.predictNextEdit",
+        "title": "Predict Next Edit"
+      },
+      {
+        "command": "mother.dumpContext",
+        "title": "Dump Context Snapshot"
+      },
+      {
+        "command": "mother.dumpPrompt",
+        "title": "Dump Prompt"
+      },
+      {
+        "command": "mother.toggleStatus",
+        "title": "Toggle Autocomplete"
+      },
+      {
+        "command": "mother.toggleGlobalAutocomplete",
+        "title": "Toggle Autocomplete (Global)"
+      },
+      {
+        "command": "mother.toggleLanguageAutocomplete",
+        "title": "Toggle Autocomplete (Language)"
+      }
+    ],
+    "configuration": {
+      "title": "mother",
+      "properties": {
+        "mother.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable inline completions globally."
+        },
+        "mother.disabledLanguages": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "description": "Language IDs where inline completions are disabled.",
+          "scope": "resource"
+        },
+        "mother.endpoint": {
+          "type": "string",
+          "default": "http://100.125.211.40:11434/v1",
+          "description": "OpenAI-compatible API base URL."
+        },
+        "mother.model": {
+          "type": "string",
+          "default": "hf.co/sweepai/sweep-next-edit-1.5B:latest",
+          "description": "Model identifier to use for predictions."
+        },
+        "mother.maxContextChars": {
+          "type": "number",
+          "default": 32768,
+          "description": "Maximum context size in characters (approx 4 chars per token)."
+        },
+        "mother.maxRecentDiffs": {
+          "type": "number",
+          "default": 8,
+          "description": "Maximum number of recent edit diffs to track."
+        },
+        "mother.maxRecentFiles": {
+          "type": "number",
+          "default": 4,
+          "description": "Maximum number of recent files to include as context."
+        },
+        "mother.maxCurrentFileChars": {
+          "type": "number",
+          "default": 20000,
+          "description": "Maximum current file size allowed before warning."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "pnpm run package",
+    "compile": "pnpm run check-types && pnpm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "pnpm run check-types && pnpm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.108.1",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "typescript-eslint": "^8.52.0",
+    "eslint": "^9.39.2",
+    "esbuild": "^0.27.2",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.3",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
