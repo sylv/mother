@@ -4,6 +4,8 @@ mother is a vscode extension that lets you use open weights prediction models wi
 
 currently only works with [Sweep AI's sweep-next-edit-1.5B](https://blog.sweep.dev/posts/oss-next-edit)
 
+![a picture of tab completions](https://i.imgur.com/2BI1494.png)
+
 the name ~~is stolen from~~ comes from [I Am Mother](https://en.wikipedia.org/wiki/I_Am_Mother)
 
 ## setup
